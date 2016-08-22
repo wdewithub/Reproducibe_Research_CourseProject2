@@ -1,0 +1,18 @@
+---
+title: "StormData analysis"
+author: "wdewit"
+date: "August 22, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r setting up project echo=FALSE}
+#install.packages('ProjectTemplate')
+#create.project('StormData')
+library('ProjectTemplate')
+load.project()
+```
