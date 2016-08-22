@@ -16,3 +16,31 @@ knitr::opts_chunk$set(echo = TRUE)
 library('ProjectTemplate')
 load.project()
 ```
+
+#Here komt de titel later nog 
+
+##Synopsis
+
+<Schrijf hier later nog de synopsis>
+
+##Data Processing
+
+We downloaded storm and other severe weather events data, registered between 1950 and Nov 2011, in the US National Oceanic and Atmospheric Administration storm database. 
+
+```{r downloading data}
+if (!file.exists('./StormData/data/stormdata.zip')) 
+{ 
+    download.file(url ='https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2',destfile='./StormData/data/stormdata.zip')
+}
+```
+
+### Reading the data
+
+After manually extracting the data from its bzip2 archive, we read in the raw data which are recorded in a comma-separated file.
+
+```{r reading data}
+```
+
+
+http://www.rpubs.com/rdpeng/13396
+
