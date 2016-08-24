@@ -10,11 +10,11 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-```{r setting up project echo=FALSE}
-#install.packages('ProjectTemplate')
-#create.project('StormData')
-library('ProjectTemplate')
-load.project()
+```{r setting_up_project, include=FALSE}
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(xtable)
 ```
 
 #Here komt de titel later nog 
@@ -25,22 +25,128 @@ load.project()
 
 ##Data Processing
 
-We downloaded storm and other severe weather events data, registered between 1950 and Nov 2011, in the US National Oceanic and Atmospheric Administration storm database. 
+We downloaded storm and other severe weather events data, registered between 1950 and Nov 2011, in the US National Oceanic and Atmospheric Administration storm database and extracted the data from the bzip archive.
 
-```{r downloading data}
-if (!file.exists('./StormData/data/stormdata.zip')) 
+```{r getting_the_data}
+
+if (!file.exists('C:/Users/ntpuser3/datascience/Reproducible Research/Reproducibe_Research_CourseProject2/StormData/data/stormdata.csv.bz2')) 
 { 
-    download.file(url ='https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2',destfile='./StormData/data/stormdata.zip')
+    download.file(url ="https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2",destfile="C:/Users/ntpuser3/datascience/Reproducible Research/Reproducibe_Research_CourseProject2/StormData/data/stormdata.csv.bz2")
 }
+
+
+if (!file.exists("C:/Users/ntpuser3/datascience/Reproducible Research/Reproducibe_Research_CourseProject2/StormData/data/stormdata")) {
+        bunzip2("C:/Users/ntpuser3/datascience/Reproducible Research/Reproducibe_Research_CourseProject2/StormData/data/stormdata.csv.bz2")
+    } else {message("File already exists")}
+
+
 ```
 
 ### Reading the data
 
-After manually extracting the data from its bzip2 archive, we read in the raw data which are recorded in a comma-separated file.
+We read in the raw data which are recorded in a comma-separated file. Since the file is 0.5 MB we use fread to speed up processing. 
+
+Next to the time and location data, we limit our input to the 2 variables measuring population health impact (fatalities and injuries) and to the 4 variables measuring economic impact ( property damage, property damage exponent, crop damage and crop damage exponent). 
+
+In total we have data on 902 297 storm events:
+
 
 ```{r reading data}
+
+input <- fread(input="C:/Users/ntpuser3/datascience/Reproducible Research/Reproducibe_Research_CourseProject2/StormData/data/stormdata",sep=',', header=TRUE, select=c("STATE__", "BGN_DATE", "BGN_TIME", "TIME_ZONE", "COUNTY", "COUNTYNAME", "STATE", "EVTYPE", "FATALITIES", "INJURIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP", "REFNUM"), data.table=FALSE)
+str(input)
 ```
+
+### Data preprocessing
+
+We convert the different storm event types, as measured by evtype, to a factor for analysis purposes. We see we have registrations on 985 different types of stoms events. Also, we convert the begin date of a storm event to a true date and derive the year from it in case we want to have a look at evolutions.
+
+```{r data_transformations, cache=TRUE}
+input <- transform(input,BGN_DATE=as.Date(BGN_DATE, format="%m/%d/%Y %H:%M:%S"), EVTYPE=as.factor(EVTYPE))
+input$YEAR=as.numeric(format(input$BGN_DATE,"%Y"))
+```
+
+We check for missing values for the health or economic impact variables.
+
+```{r missing_value_impact}
+for (i in (9:14)) 
+{
+    print(c(colnames(input[i]),":", sum(is.na(input[,i])))) 
+}
+```
+
+As we don't have any we can start our analysis of the economic and health impact of storm events in the US.
+
+
+##Results
+
+###1.Which weather events are most harmful with respect to population health ?
+
+We start in analyzing the most harmful events with respect to:
+
+* total fatalities 
+* total injuries
+* the overall health impact, as measured by the sum of total fatalities and total injuries
+
+```{r summarize_health_impact}
+health <- input %>% group_by(EVTYPE) %>% summarize(tot_fatalities=sum(FATALITIES), tot_injuries=sum(INJURIES),tot_healt_impact=tot_fatalities+tot_injuries)  
+
+health_global <- input %>% summarize(global_fatalities=sum(FATALITIES), global_injuries=sum(INJURIES),global_healt_impact=global_fatalities+global_injuries)
+```
+
+Since we have registrations on the impact of 985 different weather events, we limit ourselves in the further analysis to the Top 10 evens having the most impact according to the KPI under consideration. Depending on the KPI under consideration, the Top 10 is responsible for at least 80% of the victims. 
+
+```{r top10_health_impact}
+top10_overall <- head(arrange(health,desc(tot_healt_impact)),10)
+print(c("Total health impact - top10 coverage:", sum(top10_overall$tot_healt_impact)/health_global$global_healt_impact))
+top10_fatalities <- head(arrange(health,desc(tot_fatalities)),10)
+print(c("Total fatalities - top10 coverage: ",sum(top10_fatalities$tot_fatalities)/health_global$global_fatalities))
+top10_injuries <- head(arrange(health,desc(tot_injuries)),10)
+print(c("Total injuries - top10 coverage: ",sum(top10_injuries$tot_injuries)/health_global$global_injuries))
+```
+
+When looking at the overall health impact, we see that tornadoes are by far the most devestating, with 97K fatalities and injuries registered between 1950 and 2011. The health impact of the next 3 most impactful events - excessive heat, tstm wind and flood - reaches only about 9% of the tornado impact.  
+
+```{r bar_chart_top10, fig.height=4}
+ g <- ggplot(top10_overall, aes(reorder(EVTYPE,tot_healt_impact),tot_healt_impact))
+ g + geom_bar(stat='identity') + coord_flip() + labs(x="Event type", y="Total health impact (fatalities+injuries) in K") + theme_bw() + geom_text(aes(label=round(tot_healt_impact/1000,1), size=0.5, hjust=-0.1, vjust=0.5))+guides(size=FALSE)
+```
+
+In percentages, tornadoes account for 62% of the total amount of injuries and fatalities caused by severe weather events. While the second most damaging weather event, Excessive heat, only acounts for 5% of the total health impact.
+
+```{r impact_tornado and TSTM Wind}
+top10_overall[1,4]/health_global$global_healt_impact
+top10_overall[2,4]/health_global$global_healt_impact 
+```
+
+Let's now see whether the TOP 10 changes depending on whether one focusses on total health impact, total injuries or total fatalities. We therefore put the top10 weather events for each of the 3 KPI's next to each other, together with the percentage of damage they cover. 
+
+```{r compare_by_KPI_prep}
+ top10_combo <- cbind(levels(top10_overall$EVTYPE)[top10_overall$EVTYPE], top10_overall$tot_healt_impact,levels(top10_injuries$EVTYPE)[top10_injuries$EVTYPE],top10_injuries$tot_injuries, levels(top10_fatalities$EVTYPE)[top10_fatalities$EVTYPE],top10_fatalities$tot_fatalities)
+ colnames(top10_combo) <- c("Total_Health_Impact_Event", "Total_Health_Impact", "Total_Injuries_Event", "Total_Injuries", "Total_Fatalities_Events", "Total_Fatalities")
+ 
+ total_health_perc <- round((as.numeric(top10_combo[,2])/health_global$global_healt_impact)*100,1)
+ total_injuries_perc <- round((as.numeric(top10_combo[,4])/health_global$global_injuries)*100,1)
+ total_fatalities_perc <- round((as.numeric(top10_combo[,6])/health_global$global_fatalities)*100,1)
+ 
+ top10_combo2 <- cbind(top10_combo[,1], total_health_perc, top10_combo[,3], total_injuries_perc, top10_combo[,5], total_fatalities_perc)
+  colnames(top10_combo2) <- c("Total_Health_Impact_Event", "Total_Perc_Health_Impact", "Total_Injuries_Event", "Total_Perc_Injuries", "Total_Fatalities_Events", "Total_Perc_Fatalities")
+```
+
+When focusing on fatalities, we notice that the top10 weather events looks quite different than the top10 of total health impact.
+
+Although tornadoes are still by far the most impactful excessive heat, flash flood and heat become far more important at the expense of TSTM wind and flood. 
+Also RIP current, high wind and avalanche enter into the top10 of most damaging weather events, replacing ice storm, thunderstorm wind and hail from the top10 based on total health impact. 
+
+<p>
+```{r compare_by_KPI, results='asis'}
+ print(xtable(top10_combo2),type="HTML", include.colnames = TRUE)
+```
+</p>
+
+###2.Which weather events have the greatest economic impact ?
+
 
 
 http://www.rpubs.com/rdpeng/13396
-
+http://rstudio-pubs-static.s3.amazonaws.com/25163_500bf4ac6b1847c9ab20d3e7a29c29fe.html
