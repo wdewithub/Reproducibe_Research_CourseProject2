@@ -15,6 +15,7 @@ library(data.table)
 library(dplyr)
 library(ggplot2)
 library(xtable)
+library(stringr)
 ```
 
 #Here komt de titel later nog 
@@ -59,12 +60,65 @@ str(input)
 
 ### Data preprocessing
 
-We convert the different storm event types, as measured by evtype, to a factor for analysis purposes. We see we have registrations on 985 different types of stoms events. Also, we convert the begin date of a storm event to a true date and derive the year from it in case we want to have a look at evolutions.
+We convert the different weather event types, as measured by evtype, to a factor for analysis purposes. We see we have registrations on 985 different types of extreme weather events. Since the documentation only mentioned 48 different weather events we have a look at the different levels.
 
-```{r data_transformations, cache=TRUE}
-input <- transform(input,BGN_DATE=as.Date(BGN_DATE, format="%m/%d/%Y %H:%M:%S"), EVTYPE=as.factor(EVTYPE))
-input$YEAR=as.numeric(format(input$BGN_DATE,"%Y"))
+```{r data_transformations, cache=TRUE, results="hide"}
+input <- transform(input, EVTYPE=as.factor(EVTYPE))
+sort(levels(input$EVTYPE))
 ```
+
+In the levels we see many spelling mistakes, combinations of events, synonyms and the like. 
+We therefore will first focus as many as possible to improve data quality. With our efforts we managed to get up to 392 different weather event types (which is still more than the 48 mentioned in the documentation).
+
+```{r data_quality_improvement, cache=TRUE}
+input$EVTYPE <- str_trim(sub("-","",toupper(input$EVTYPE)))
+input$EVTYPE <- sub('FLOODING','FLOOD',input$EVTYPE)
+input$EVTYPE <- sub('FLOOOD','FLOOD',input$EVTYPE)
+input$EVTYPE <- sub('AVALANCE','AVALANCHE',input$EVTYPE)
+input$EVTYPE <- sub('BEACH','COASTAL',input$EVTYPE)
+input$EVTYPE <- sub('DRY','DROUGHT',input$EVTYPE)
+input$EVTYPE <- sub('LATE SEASON','LATE',input$EVTYPE)
+input$EVTYPE <- sub('SNOWFALL','SNOW',input$EVTYPE)
+input$EVTYPE <- sub('STROM','STORM',input$EVTYPE)
+input$EVTYPE <- sub('THUNDERSNOW','THUNDERSTORM',input$EVTYPE)
+input$EVTYPE <- sub('THUNDESTORM','THUNDERSTORM',input$EVTYPE)
+input$EVTYPE <- sub('THUNDEERSTORM','THUNDERSTORM',input$EVTYPE)
+input$EVTYPE <- sub('TORNDAO','TORNADO',input$EVTYPE)
+input$EVTYPE[grepl("HYPERTHERMIA",input$EVTYPE) | grepl("HUPOTHERMIA",input$EVTYPE)] <- "EXCESSIVE HEAT"
+input$EVTYPE[grepl("COASTAL",input$EVTYPE)] <- "COASTAL FLOOD"
+input$EVTYPE[grepl("COLD",input$EVTYPE)] <- "COLD/WIND CHILL"
+input$EVTYPE[grepl("TSTM",input$EVTYPE) | grepl("THUNDERSTORM",input$EVTYPE)] <- "THUNDERSTORM"
+input$EVTYPE[grepl("BLIZZARD",input$EVTYPE)] <- "BLIZZARD"
+input$EVTYPE[grepl("COASTAL FLOOD",input$EVTYPE)] <- "COASTAL FLOOD"
+input$EVTYPE[grepl("DRY MICROB",input$EVTYPE)] <- "DRY MICROBURST"
+input$EVTYPE[grepl("DUST DEV",input$EVTYPE)] <- "DUST DEVIL"
+input$EVTYPE[grepl("EXTREME WIND",input$EVTYPE) | grepl("EXTREME COLD",input$EVTYPE)] <- "COLD/WIND"
+input$EVTYPE[grepl("EXCESSIVE HEAT",input$EVTYPE) | grepl("EXTREME HEAT",input$EVTYPE)] <- "EXCESSIVE HEAT"
+input$EVTYPE[grepl("FLASH",input$EVTYPE) & grepl("FLOOD",input$EVTYPE)] <- "FLASH FLOOD"
+input$EVTYPE[grepl("FROST",input$EVTYPE)] <- "FROST"
+input$EVTYPE[grepl("FUNNEL",input$EVTYPE)] <- "FUNNEL CLOUD"
+input$EVTYPE[grepl("HAIL",input$EVTYPE)] <- "HAIL"
+input$EVTYPE[grepl("HEAT",input$EVTYPE) & (grepl("WAVE",input$EVTYPE) |grepl("DROUGHT",input$EVTYPE) )] <- "HEAT"
+input$EVTYPE[grepl("HEAVY RAIN",input$EVTYPE)] <- "HEAVY RAIN"
+input$EVTYPE[grepl("HEAVY SNOW",input$EVTYPE)] <- "HEAVY SNOW"
+input$EVTYPE[grepl("HIGH SURF",input$EVTYPE)] <- "HIGH SURF"
+input$EVTYPE[grepl("HIGH WIND",input$EVTYPE)] <- "HIGH WIND"
+input$EVTYPE[grepl("HURRICANE",input$EVTYPE)] <- "HURRICANE"
+input$EVTYPE[grepl("ICE",input$EVTYPE)] <- "ICE STORM"
+input$EVTYPE[grepl("LIGHTNING",input$EVTYPE)] <- "LIGHTNING"
+input$EVTYPE[grepl("MUD",input$EVTYPE) & grepl("SLIDE",input$EVTYPE) ] <- "MUD SLIDE"
+input$EVTYPE[grepl("SLEET",input$EVTYPE)] <- "SLEET"
+input$EVTYPE[grepl("STRONG WIND",input$EVTYPE)] <- "STRONG WIND"
+input$EVTYPE[grepl("TORNADO",input$EVTYPE)] <- "TORNADO"
+input$EVTYPE[grepl("TROPICAL",input$EVTYPE)] <- "TROPICAL DEPRESSION"
+input$EVTYPE[grepl("WATERSPOUT",input$EVTYPE)] <- "WATERSPOUT"
+input$EVTYPE[grepl("WINTRY",input$EVTYPE) & (grepl("MIX",input$EVTYPE) |grepl("WEATHER",input$EVTYPE) )] <- "WINTRY WEATHER"
+input$EVTYPE[grepl("WINTER STORM",input$EVTYPE)] <- "WINTER STORM"
+input$EVTYPE[grepl("FLOOD",input$EVTYPE) & !grepl("FLASH FLOOD",input$EVTYPE)] <- "FLOOD"
+input$EVTYPE <- as.factor(input$EVTYPE)
+length(levels(input$EVTYPE))
+```
+
 
 We check for missing values for the health or economic impact variables.
 
@@ -94,7 +148,7 @@ health <- input %>% group_by(EVTYPE) %>% summarize(tot_fatalities=sum(FATALITIES
 health_global <- input %>% summarize(global_fatalities=sum(FATALITIES), global_injuries=sum(INJURIES),global_healt_impact=global_fatalities+global_injuries)
 ```
 
-Since we have registrations on the impact of 985 different weather events, we limit ourselves in the further analysis to the Top 10 evens having the most impact according to the KPI under consideration. Depending on the KPI under consideration, the Top 10 is responsible for at least 80% of the victims. 
+Since we have registrations on the impact of 392 different weather events, we limit ourselves in the further analysis to the Top 10 evens having the most impact according to the KPI under consideration. Depending on the KPI under consideration, the Top 10 is responsible for at least 85% of the victims. 
 
 ```{r top10_health_impact}
 top10_overall <- head(arrange(health,desc(tot_healt_impact)),10)
@@ -105,18 +159,17 @@ top10_injuries <- head(arrange(health,desc(tot_injuries)),10)
 print(c("Total injuries - top10 coverage: ",sum(top10_injuries$tot_injuries)/health_global$global_injuries))
 ```
 
-When looking at the overall health impact, we see that tornadoes are by far the most devestating, with 97K fatalities and injuries registered between 1950 and 2011. The health impact of the next 3 most impactful events - excessive heat, tstm wind and flood - reaches only about 9% of the tornado impact.  
+When looking at the overall health impact, we see that tornadoes are by far the most devestating, with 97K fatalities and injuries registered between 1950 and 2011. The health impact of the next most impactful event- thunderstorms & (excessive) heat - is only about 10% of the tornado impact.  
 
 ```{r bar_chart_top10, fig.height=4}
  g <- ggplot(top10_overall, aes(reorder(EVTYPE,tot_healt_impact),tot_healt_impact))
- g + geom_bar(stat='identity') + coord_flip() + labs(x="Event type", y="Total health impact (fatalities+injuries) in K") + theme_bw() + geom_text(aes(label=round(tot_healt_impact/1000,1), size=0.5, hjust=-0.1, vjust=0.5))+guides(size=FALSE)
+ g + geom_bar(stat='identity') + coord_flip() + labs(x="Event type", y="Total health impact (fatalities+injuries) in K") + theme_bw() + geom_text(aes(label=round(tot_healt_impact/1000,1),  hjust=-0.1, vjust=0.5), size=3)+guides(size=FALSE)
 ```
 
-In percentages, tornadoes account for 62% of the total amount of injuries and fatalities caused by severe weather events. While the second most damaging weather event, Excessive heat, only acounts for 5% of the total health impact.
+In percentages, tornadoes account for 62% of the total amount of injuries and fatalities caused by severe weather events. 
 
-```{r impact_tornado and TSTM Wind}
+```{r impact_tornado}
 top10_overall[1,4]/health_global$global_healt_impact
-top10_overall[2,4]/health_global$global_healt_impact 
 ```
 
 Let's now see whether the TOP 10 changes depending on whether one focusses on total health impact, total injuries or total fatalities. We therefore put the top10 weather events for each of the 3 KPI's next to each other, together with the percentage of damage they cover. 
@@ -124,29 +177,95 @@ Let's now see whether the TOP 10 changes depending on whether one focusses on to
 ```{r compare_by_KPI_prep}
  top10_combo <- cbind(levels(top10_overall$EVTYPE)[top10_overall$EVTYPE], top10_overall$tot_healt_impact,levels(top10_injuries$EVTYPE)[top10_injuries$EVTYPE],top10_injuries$tot_injuries, levels(top10_fatalities$EVTYPE)[top10_fatalities$EVTYPE],top10_fatalities$tot_fatalities)
  colnames(top10_combo) <- c("Total_Health_Impact_Event", "Total_Health_Impact", "Total_Injuries_Event", "Total_Injuries", "Total_Fatalities_Events", "Total_Fatalities")
- 
- total_health_perc <- round((as.numeric(top10_combo[,2])/health_global$global_healt_impact)*100,1)
- total_injuries_perc <- round((as.numeric(top10_combo[,4])/health_global$global_injuries)*100,1)
- total_fatalities_perc <- round((as.numeric(top10_combo[,6])/health_global$global_fatalities)*100,1)
- 
- top10_combo2 <- cbind(top10_combo[,1], total_health_perc, top10_combo[,3], total_injuries_perc, top10_combo[,5], total_fatalities_perc)
-  colnames(top10_combo2) <- c("Total_Health_Impact_Event", "Total_Perc_Health_Impact", "Total_Injuries_Event", "Total_Perc_Injuries", "Total_Fatalities_Events", "Total_Perc_Fatalities")
 ```
 
-When focusing on fatalities, we notice that the top10 weather events looks quite different than the top10 of total health impact.
+The priority of severe weather events preparation will not change much when looking to total injuries or to overall health impact.
 
-Although tornadoes are still by far the most impactful excessive heat, flash flood and heat become far more important at the expense of TSTM wind and flood. 
-Also RIP current, high wind and avalanche enter into the top10 of most damaging weather events, replacing ice storm, thunderstorm wind and hail from the top10 based on total health impact. 
-
+However, when focusing on fatalities, we notice a bigger change in the top10 weather events. Tornadoes and (excessive) heat by far dominate the TOP10, while other severe weather events lead to far less number of fatalities.
 <p>
 ```{r compare_by_KPI, results='asis'}
- print(xtable(top10_combo2),type="HTML", include.colnames = TRUE)
+ print(xtable(top10_combo),type="HTML", include.colnames = TRUE)
 ```
 </p>
 
+
+```{r cleanup}
+rm(health, tot_injuries, healt_global, global_injuries, top10_overall, top10_fatalities, top10_injuries)
+rm(top10_combo)
+```
+
 ###2.Which weather events have the greatest economic impact ?
 
+We continue in analyzing the most harmful events with respect to:
+
+* building damage 
+* crop damage
+* the overall economic impact, as measured by the sum of building and crop damage.
+
+However, as the exact amount of damage is split into two variables, the amount and the exponentiation component, we first have to convert this into a single variable giving the amount of damage in simple dollars.
+
+```{r calculate amounts}
+levels(as.factor(input$PROPDMGEXP))
+levels(as.factor(input$CROPDMGEXP))
+
+input$PROPDMGEXP <- toupper(input$PROPDMGEXP)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="",1)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="-",1)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="?",1)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="+",1)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="0",1)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="1",10)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="2",100)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="3",1000)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="4",10000)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="5",100000)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="6",1000000)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="7",10000000)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="8",100000000)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="B",10^9)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="H",10^2)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="K",10^3)
+input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="M",10^6)
+
+input$CROPDMGEXP <- toupper(input$CROPDMGEXP)
+input$CROPDMGEXP <- replace(input$CROPDMGEXP, input$CROPDMGEXP=="",1)
+input$CROPDMGEXP <- replace(input$CROPDMGEXP, input$CROPDMGEXP=="?",1)
+input$CROPDMGEXP <- replace(input$CROPDMGEXP, input$CROPDMGEXP=="0",1)
+input$CROPDMGEXP <- replace(input$CROPDMGEXP, input$CROPDMGEXP=="2",100)
+input$CROPDMGEXP <- replace(input$CROPDMGEXP, input$CROPDMGEXP=="B",10^9)
+input$CROPDMGEXP <- replace(input$CROPDMGEXP, input$CROPDMGEXP=="K",10^3)
+input$CROPDMGEXP <- replace(input$CROPDMGEXP, input$CROPDMGEXP=="M",10^6)
+
+levels(as.factor(input$PROPDMGEXP))
+levels(as.factor(input$CROPDMGEXP))
+
+summary(input$PROPDMG)
+summary(input$CROPDMG)
+
+input$PROPDMG <- input$PROPDMG * as.numeric(input$PROPDMGEXP)
+input$CROPDMG <- input$CROPDMG * as.numeric(input$CROPDMGEXP)
+
+summary(input$PROPDMG)
+summary(input$CROPDMG)
+```
+
+```{r summarize_economic_impact}
+econ <- input %>% group_by(EVTYPE) %>% summarize(tot_prop=sum(PROPDMG), tot_crop=sum(CROPDMG),tot_econ_impact=tot_prop+tot_crop)  
+
+econ_global <- input %>% summarize(global_prop=sum(PROPDMG), global_crop=sum(CROPDMG),global_econ_impact=global_prop+global_econ)
+```
+
+!!!! START !!!
+
+Since we have registrations on the impact of 392 different weather events, we limit ourselves in the further analysis to the Top 10 evens having the most impact according to the KPI under consideration. Depending on the KPI under consideration, the Top 10 is responsible for at least 85% of the victims. 
+
+```{r top10_health_impact}
+top10_overall <- head(arrange(health,desc(tot_healt_impact)),10)
+print(c("Total health impact - top10 coverage:", sum(top10_overall$tot_healt_impact)/health_global$global_healt_impact))
+top10_fatalities <- head(arrange(health,desc(tot_fatalities)),10)
+print(c("Total fatalities - top10 coverage: ",sum(top10_fatalities$tot_fatalities)/health_global$global_fatalities))
+top10_injuries <- head(arrange(health,desc(tot_injuries)),10)
+print(c("Total injuries - top10 coverage: ",sum(top10_injuries$tot_injuries)/health_global$global_injuries))
+```
 
 
-http://www.rpubs.com/rdpeng/13396
-http://rstudio-pubs-static.s3.amazonaws.com/25163_500bf4ac6b1847c9ab20d3e7a29c29fe.html
