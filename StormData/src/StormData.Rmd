@@ -18,11 +18,11 @@ library(xtable)
 library(stringr)
 ```
 
-#Here komt de titel later nog 
+#Assessment of economic and health impact of severe weather events. 
 
 ##Synopsis
 
-<Schrijf hier later nog de synopsis>
+We investigated the economic and health impact of 48 severe weather events registered in the US National Oceanic and Atmospheric Administration storm database between 1950 and 2011. Health impact was measured both by number of injuries and number of fatalities. Economic impact was assessed by looking at both property damage and crop damage. Tornadoes have by far the most health impact. Flood clearly dominates the economic impact. As they both appear also in the top 4 of the most devastating events with respect to the other damage component, tornadoes and flood can be considered the 2 most impactful weather events from an overall perspective. Furthermore, from a health perspective (excessive) heat and thunderstorms are most impactful, while from an overall economic perspective hurricanes and storm surge have an important impact. Although overall less important when looking at the total amount of damage, for farmers drought, ice storms and hail cause lots of crop damage.
 
 ##Data Processing
 
@@ -49,7 +49,7 @@ We read in the raw data which are recorded in a comma-separated file. Since the 
 
 Next to the time and location data, we limit our input to the 2 variables measuring population health impact (fatalities and injuries) and to the 4 variables measuring economic impact ( property damage, property damage exponent, crop damage and crop damage exponent). 
 
-In total we have data on 902 297 storm events:
+In total we have data on 902 297 severe weather events:
 
 
 ```{r reading data}
@@ -68,7 +68,7 @@ sort(levels(input$EVTYPE))
 ```
 
 In the levels we see many spelling mistakes, combinations of events, synonyms and the like. 
-We therefore will first focus as many as possible to improve data quality. With our efforts we managed to get up to 392 different weather event types (which is still more than the 48 mentioned in the documentation).
+We therefore will first focus as many as possible to improve data quality. With our best efforts we managed to limit the data to 392 different weather event types.
 
 ```{r data_quality_improvement, cache=TRUE}
 input$EVTYPE <- str_trim(sub("-","",toupper(input$EVTYPE)))
@@ -148,40 +148,44 @@ health <- input %>% group_by(EVTYPE) %>% summarize(tot_fatalities=sum(FATALITIES
 health_global <- input %>% summarize(global_fatalities=sum(FATALITIES), global_injuries=sum(INJURIES),global_healt_impact=global_fatalities+global_injuries)
 ```
 
-Since we have registrations on the impact of 392 different weather events, we limit ourselves in the further analysis to the Top 10 evens having the most impact according to the KPI under consideration. Depending on the KPI under consideration, the Top 10 is responsible for at least 85% of the victims. 
+Since we have registrations on the impact of 392 different weather events, we limit ourselves in the further analysis to the Top 10 events having the most impact according to the KPI under consideration. Depending on the KPI under consideration, the Top 10 is responsible for at least 85% of the victims. 
 
 ```{r top10_health_impact}
 top10_overall <- head(arrange(health,desc(tot_healt_impact)),10)
 print(c("Total health impact - top10 coverage:", sum(top10_overall$tot_healt_impact)/health_global$global_healt_impact))
+
 top10_fatalities <- head(arrange(health,desc(tot_fatalities)),10)
 print(c("Total fatalities - top10 coverage: ",sum(top10_fatalities$tot_fatalities)/health_global$global_fatalities))
+
 top10_injuries <- head(arrange(health,desc(tot_injuries)),10)
 print(c("Total injuries - top10 coverage: ",sum(top10_injuries$tot_injuries)/health_global$global_injuries))
 ```
 
-When looking at the overall health impact, we see that tornadoes are by far the most devestating, with 97K fatalities and injuries registered between 1950 and 2011. The health impact of the next most impactful event- thunderstorms & (excessive) heat - is only about 10% of the tornado impact.  
+When looking at the overall health impact, we see that tornadoes are by far the most devestating, with 97K fatalities and injuries registered between 1950 and 2011. The health impact of the next most impactful events - thunderstorms & (excessive) heat - is only about 10% of the tornado impact.  
 
 ```{r bar_chart_top10, fig.height=4}
  g <- ggplot(top10_overall, aes(reorder(EVTYPE,tot_healt_impact),tot_healt_impact))
  g + geom_bar(stat='identity') + coord_flip() + labs(x="Event type", y="Total health impact (fatalities+injuries) in K") + theme_bw() + geom_text(aes(label=round(tot_healt_impact/1000,1),  hjust=-0.1, vjust=0.5), size=3)+guides(size=FALSE)
 ```
 
-In percentages, tornadoes account for 62% of the total amount of injuries and fatalities caused by severe weather events. 
+In percentages, tornadoes account for 62% of the total amount of injuries and fatalities caused by severe weather events. The top4, tornadoes, thunderstorm, excessive heat and flood, account together for 79% of all health impact.
 
 ```{r impact_tornado}
 top10_overall[1,4]/health_global$global_healt_impact
+(top10_overall[1,4]+top10_overall[2,4]+top10_overall[3,4]+top10_overall[4,4])/health_global$global_healt_impact
 ```
 
-Let's now see whether the TOP 10 changes depending on whether one focusses on total health impact, total injuries or total fatalities. We therefore put the top10 weather events for each of the 3 KPI's next to each other, together with the percentage of damage they cover. 
+Let's now see whether the TOP 10 changes depending on whether one focusses on total health impact, total injuries or total fatalities. We therefore put the top10 weather events for each of the 3 KPI's next to each other, together with their count of victims. 
 
 ```{r compare_by_KPI_prep}
  top10_combo <- cbind(levels(top10_overall$EVTYPE)[top10_overall$EVTYPE], top10_overall$tot_healt_impact,levels(top10_injuries$EVTYPE)[top10_injuries$EVTYPE],top10_injuries$tot_injuries, levels(top10_fatalities$EVTYPE)[top10_fatalities$EVTYPE],top10_fatalities$tot_fatalities)
- colnames(top10_combo) <- c("Total_Health_Impact_Event", "Total_Health_Impact", "Total_Injuries_Event", "Total_Injuries", "Total_Fatalities_Events", "Total_Fatalities")
+ 
+colnames(top10_combo) <- c("Total_Health_Impact_Event", "Total_Health_Impact", "Total_Injuries_Event", "Total_Injuries", "Total_Fatalities_Events", "Total_Fatalities")
 ```
 
 The priority of severe weather events preparation will not change much when looking to total injuries or to overall health impact.
 
-However, when focusing on fatalities, we notice a bigger change in the top10 weather events. Tornadoes and (excessive) heat by far dominate the TOP10, while other severe weather events lead to far less number of fatalities.
+However, when focusing solely on fatalities, we notice a bigger change in the top10 weather events. Tornadoes and (excessive) heat lead the TOP10.
 <p>
 ```{r compare_by_KPI, results='asis'}
  print(xtable(top10_combo),type="HTML", include.colnames = TRUE)
@@ -190,8 +194,7 @@ However, when focusing on fatalities, we notice a bigger change in the top10 wea
 
 
 ```{r cleanup}
-rm(health, tot_injuries, healt_global, global_injuries, top10_overall, top10_fatalities, top10_injuries)
-rm(top10_combo)
+rm(health, tot_injuries, health_global, top10_overall, top10_fatalities, top10_injuries, top10_combo)
 ```
 
 ###2.Which weather events have the greatest economic impact ?
@@ -202,7 +205,7 @@ We continue in analyzing the most harmful events with respect to:
 * crop damage
 * the overall economic impact, as measured by the sum of building and crop damage.
 
-However, as the exact amount of damage is split into two variables, the amount and the exponentiation component, we first have to convert this into a single variable giving the amount of damage in simple dollars.
+However, as the exact amount of damage is split into two variables, the amount and the exponentiation component, we first have to convert this into a single variable giving the amount of damage in simple dollars. There are some strange symbols, both in PROPDMGEXP and CROPDMGEXP. We are conservative and assume there is no need for exponentiation of the amount mentioned in PROPDMG and CROPDMG in these cases.
 
 ```{r calculate amounts}
 levels(as.factor(input$PROPDMGEXP))
@@ -226,6 +229,7 @@ input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="B",10^9)
 input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="H",10^2)
 input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="K",10^3)
 input$PROPDMGEXP <- replace(input$PROPDMGEXP, input$PROPDMGEXP=="M",10^6)
+
 
 input$CROPDMGEXP <- toupper(input$CROPDMGEXP)
 input$CROPDMGEXP <- replace(input$CROPDMGEXP, input$CROPDMGEXP=="",1)
@@ -252,20 +256,61 @@ summary(input$CROPDMG)
 ```{r summarize_economic_impact}
 econ <- input %>% group_by(EVTYPE) %>% summarize(tot_prop=sum(PROPDMG), tot_crop=sum(CROPDMG),tot_econ_impact=tot_prop+tot_crop)  
 
-econ_global <- input %>% summarize(global_prop=sum(PROPDMG), global_crop=sum(CROPDMG),global_econ_impact=global_prop+global_econ)
+econ_global <- input %>% summarize(global_prop=sum(PROPDMG), global_crop=sum(CROPDMG),global_econ_impact=global_prop+global_crop)
 ```
 
-!!!! START !!!
+Again, we limit ourselves in the further analysis to the Top 10 events having the most impact according to the KPI under consideration. Depending on the KPI under consideration, the Top 10 is responsible for at least 90% of the damage. 
 
-Since we have registrations on the impact of 392 different weather events, we limit ourselves in the further analysis to the Top 10 evens having the most impact according to the KPI under consideration. Depending on the KPI under consideration, the Top 10 is responsible for at least 85% of the victims. 
+```{r top10_econ_impact}
+top10_overall <- head(arrange(econ,desc(tot_econ_impact)),10)
+print(c("Total economic impact - top10 coverage:", 
+sum(top10_overall$tot_econ_impact)/econ_global$global_econ_impact))
 
-```{r top10_health_impact}
-top10_overall <- head(arrange(health,desc(tot_healt_impact)),10)
-print(c("Total health impact - top10 coverage:", sum(top10_overall$tot_healt_impact)/health_global$global_healt_impact))
-top10_fatalities <- head(arrange(health,desc(tot_fatalities)),10)
-print(c("Total fatalities - top10 coverage: ",sum(top10_fatalities$tot_fatalities)/health_global$global_fatalities))
-top10_injuries <- head(arrange(health,desc(tot_injuries)),10)
-print(c("Total injuries - top10 coverage: ",sum(top10_injuries$tot_injuries)/health_global$global_injuries))
+top10_prop <- head(arrange(econ,desc(tot_prop)),10)
+print(c("Total property damage - top10 coverage: ",sum(top10_prop$tot_prop)/econ_global$global_prop))
+
+top10_crop <- head(arrange(econ,desc(tot_crop)),10)
+print(c("Total crop damage - top10 coverage: ",sum(top10_crop$tot_crop)/econ_global$global_crop))
 ```
 
+
+When looking at the economic impact of severe weather events, flood dominates with a total damage of 161 million dollars registerd between 1950 and 2011. The damage of hurricanes is only about half of the damage caused by flood. Tornadoes and storm surge follow with respectively 57.4 and 43.3 million dollar of economic damage. The other weather events in the TOP10 are far less devastating with a damage amount less than 12% of the damage caused by flood.
+
+```{r bar_chart_top10_econ, fig.height=4}
+ g <- ggplot(top10_overall, aes(reorder(EVTYPE,tot_econ_impact),tot_econ_impact/10^9))
+ g + geom_bar(stat='identity') + coord_flip() + labs(x="Event type", y="Total economic damage (million dollars)") + theme_bw()+geom_text(aes(label=round(tot_econ_impact/10^9,1),  hjust=-0.1, vjust=0.5), size=3)+guides(size=FALSE)
+```
+
+In percentages, flood, hurricane, tornado and storm surges account for nearly three quarter of the total economic damage caused by severe weather events. 
+
+```{r impact_top4}
+(top10_overall[1,4]+top10_overall[2,4]+top10_overall[3,4]+top10_overall[4,4])/econ_global$global_econ_impact
+```
+
+Again, let's see whether the most devastating weather events change, depending whether one looks at total economic impact, property damage or crop damage.
+
+```{r compare_by_KPI_econ_prep}
+ top10_combo <- cbind(levels(top10_overall$EVTYPE)[top10_overall$EVTYPE], round(top10_overall$tot_econ_impact/10^9,1),levels(top10_prop$EVTYPE)[top10_prop$EVTYPE],round(top10_prop$tot_prop/10^9,1), levels(top10_crop$EVTYPE)[top10_crop$EVTYPE],round(top10_crop$tot_crop/10^9,1))
+ 
+colnames(top10_combo) <- c("Total_Economic_Impact_Event", "Total_Economic_Impact", "Total_PropertyDamage_Event", "Total_PropertyDmg", "Total_CropDamage_Events", "Total_CropDmg")
+```
+
+Property damage are the largest part of the total economic impact. Therefore the priority of severe weather events preparation will not change much when looking to total economic impact or to property damage.
+
+However, when focusing on crop damage, we notice a shift in the top10 weather events. Drought being the most important one with 13.9 million dollars of damage, closely followed by flood 10.8 million dollars of damage. Next hurricanes and ice storms follow with both about 5 million dollars of damage and hail with 3 million dollars of damage. Together they account for 62% of total crop damage.
+<p>
+```{r compare_by_KPI_econ, results='asis'}
+ print(xtable(top10_combo),type="HTML", include.colnames = TRUE)
+```
+</p>
+
+
+```{r impact_top4crop}
+(top10_crop[1,4]+top10_crop[2,4]+top10_crop[3,4]+top10_crop[4,4]+top10_crop[5,4])/econ_global$global_econ_impact
+```
+
+```{r cleanup2}
+rm(econ, econ_global, top10_crop, top10_prop, top10_overall, top10_combo)
+```
+`
 
